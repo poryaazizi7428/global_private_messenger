@@ -1,5 +1,4 @@
 import os
-# حذف eventlet و استفاده از gevent
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -14,8 +13,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
-# تغییر async_mode به gevent
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
+# استفاده از threading به جای gevent یا eventlet
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -56,6 +55,10 @@ class Message(db.Model):
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    return redirect(url_for('login'))
 
 @app.route('/')
 def index():
@@ -149,67 +152,67 @@ def send_message():
     return jsonify({'success': True})
 
 @socketio.on('connect')
-@login_required
 def handle_connect():
-    join_room(f'user_{current_user.id}')
-    current_user.last_seen = datetime.utcnow()
-    db.session.commit()
-    emit('user_online', {'user_id': current_user.id}, broadcast=True)
+    if current_user.is_authenticated:
+        join_room(f'user_{current_user.id}')
+        current_user.last_seen = datetime.utcnow()
+        db.session.commit()
+        emit('user_online', {'user_id': current_user.id}, broadcast=True)
 
 @socketio.on('disconnect')
-@login_required
 def handle_disconnect():
-    current_user.last_seen = datetime.utcnow()
-    db.session.commit()
-    emit('user_offline', {'user_id': current_user.id}, broadcast=True)
+    if current_user.is_authenticated:
+        current_user.last_seen = datetime.utcnow()
+        db.session.commit()
+        emit('user_offline', {'user_id': current_user.id}, broadcast=True)
 
 @socketio.on('send_message')
-@login_required
 def handle_send_message(data):
-    message = Message(
-        content=data['content'],
-        sender_id=current_user.id,
-        receiver_id=data.get('receiver_id')
-    )
-    
-    db.session.add(message)
-    db.session.commit()
-    
-    emit('new_message', {
-        'id': message.id,
-        'content': message.content,
-        'sender_id': message.sender_id,
-        'receiver_id': message.receiver_id,
-        'sender_name': current_user.display_name,
-        'created_at': message.created_at.isoformat()
-    }, room=f'user_{message.receiver_id}')
-    
-    emit('new_message', {
-        'id': message.id,
-        'content': message.content,
-        'sender_id': message.sender_id,
-        'receiver_id': message.receiver_id,
-        'sender_name': current_user.display_name,
-        'created_at': message.created_at.isoformat()
-    }, room=f'user_{current_user.id}')
+    if current_user.is_authenticated:
+        message = Message(
+            content=data['content'],
+            sender_id=current_user.id,
+            receiver_id=data.get('receiver_id')
+        )
+        
+        db.session.add(message)
+        db.session.commit()
+        
+        emit('new_message', {
+            'id': message.id,
+            'content': message.content,
+            'sender_id': message.sender_id,
+            'receiver_id': message.receiver_id,
+            'sender_name': current_user.display_name,
+            'created_at': message.created_at.isoformat()
+        }, room=f'user_{message.receiver_id}')
+        
+        emit('new_message', {
+            'id': message.id,
+            'content': message.content,
+            'sender_id': message.sender_id,
+            'receiver_id': message.receiver_id,
+            'sender_name': current_user.display_name,
+            'created_at': message.created_at.isoformat()
+        }, room=f'user_{current_user.id}')
 
 @socketio.on('typing_start')
-@login_required
 def handle_typing_start(data):
-    emit('user_typing', {
-        'user_id': current_user.id,
-        'username': current_user.username,
-        'typing': True
-    }, room=f'user_{data["receiver_id"]}')
+    if current_user.is_authenticated:
+        emit('user_typing', {
+            'user_id': current_user.id,
+            'username': current_user.username,
+            'typing': True
+        }, room=f'user_{data["receiver_id"]}')
 
 @socketio.on('typing_stop')
-@login_required
 def handle_typing_stop(data):
-    emit('user_typing', {
-        'user_id': current_user.id,
-        'username': current_user.username,
-        'typing': False
-    }, room=f'user_{data["receiver_id"]}')
+    if current_user.is_authenticated:
+        emit('user_typing', {
+            'user_id': current_user.id,
+            'username': current_user.username,
+            'typing': False
+        }, room=f'user_{data["receiver_id"]}')
 
 def init_db():
     with app.app_context():
