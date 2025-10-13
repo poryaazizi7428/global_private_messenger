@@ -1,8 +1,5 @@
-
 import os
-import eventlet
-eventlet.monkey_patch()
-
+# حذف eventlet و استفاده از gevent
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -17,7 +14,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+# تغییر async_mode به gevent
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -237,5 +235,5 @@ def init_db():
 
 if __name__ == '__main__':
     init_db()
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 10000))
     socketio.run(app, host='0.0.0.0', port=port, debug=False)
