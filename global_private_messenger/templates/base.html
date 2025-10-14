@@ -1,0 +1,326 @@
+<!-- templates/base.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Web Messenger{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    {% block content %}{% endblock %}
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/socket.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
+
+<!-- templates/index.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<div id="app" class="app-container">
+    <!-- Authentication Modal -->
+    <div id="authModal" class="modal-overlay">
+        <div class="modal-content auth-modal">
+            <div class="auth-container">
+                <div class="auth-header">
+                    <h1>Web Messenger</h1>
+                    <p>Connect with anyone, anywhere</p>
+                </div>
+
+                <div class="auth-tabs">
+                    <button class="tab-btn active" data-tab="login">Login</button>
+                    <button class="tab-btn" data-tab="register">Register</button>
+                </div>
+
+                <!-- Login Form -->
+                <form id="loginForm" class="auth-form active">
+                    <div class="form-group">
+                        <label for="loginUsername">Username</label>
+                        <input type="text" id="loginUsername" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <input type="password" id="loginPassword" name="password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Login</button>
+                    <div id="loginError" class="error-message"></div>
+                </form>
+
+                <!-- Register Form -->
+                <form id="registerForm" class="auth-form">
+                    <div class="form-group">
+                        <label for="regUsername">Username</label>
+                        <input type="text" id="regUsername" name="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="regEmail">Email</label>
+                        <input type="email" id="regEmail" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="regPassword">Password</label>
+                        <input type="password" id="regPassword" name="password" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="regDisplayName">Display Name</label>
+                        <input type="text" id="regDisplayName" name="displayName">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Register</button>
+                    <div id="registerError" class="error-message"></div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="mainApp" class="main-app hidden">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="user-profile-mini">
+                    <img id="userAvatarMini" src="https://via.placeholder.com/40" alt="Avatar">
+                    <span id="usernameMini"></span>
+                </div>
+                <button id="newChatBtn" class="btn btn-icon" title="New Chat">
+                    <i class="fas fa-pencil-alt"></i>
+                </button>
+            </div>
+
+            <div class="sidebar-search">
+                <input type="text" id="conversationSearch" placeholder="Search conversations...">
+                <i class="fas fa-search"></i>
+            </div>
+
+            <div class="conversations-list" id="conversationsList">
+                <div class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <button id="settingsBtn" class="btn btn-icon" title="Settings">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button id="logoutBtn" class="btn btn-icon" title="Logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Chat Area -->
+        <main class="chat-area">
+            <!-- Chat Empty State -->
+            <div id="chatEmpty" class="chat-empty">
+                <i class="fas fa-comments"></i>
+                <h2>Select a conversation to start chatting</h2>
+                <p>Choose from your conversations or start a new one</p>
+            </div>
+
+            <!-- Active Chat -->
+            <div id="activeChat" class="active-chat hidden">
+                <!-- Chat Header -->
+                <header class="chat-header">
+                    <div class="chat-header-info">
+                        <h2 id="chatTitle"></h2>
+                        <span id="chatStatus" class="chat-status"></span>
+                    </div>
+                    <div class="chat-header-actions">
+                        <button id="callBtn" class="btn btn-icon" title="Audio Call">
+                            <i class="fas fa-phone"></i>
+                        </button>
+                        <button id="videoChatBtn" class="btn btn-icon" title="Video Call">
+                            <i class="fas fa-video"></i>
+                        </button>
+                        <button id="infoBtn" class="btn btn-icon" title="Info">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
+                    </div>
+                </header>
+
+                <!-- Messages Container -->
+                <div class="messages-container" id="messagesContainer">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                </div>
+
+                <!-- Typing Indicator -->
+                <div id="typingIndicator" class="typing-indicator hidden">
+                    <span id="typingUsers"></span>
+                    <div class="dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                </div>
+
+                <!-- Message Input -->
+                <div class="message-input-area">
+                    <div class="input-toolbar">
+                        <button id="attachBtn" class="btn btn-icon" title="Attach File">
+                            <i class="fas fa-paperclip"></i>
+                        </button>
+                        <input type="file" id="fileInput" style="display: none;" multiple>
+                        <button id="emojiBtn" class="btn btn-icon" title="Emoji">
+                            <i class="fas fa-smile"></i>
+                        </button>
+                    </div>
+                    <div class="input-wrapper">
+                        <textarea id="messageInput" placeholder="Type a message..." rows="1"></textarea>
+                        <button id="sendBtn" class="btn btn-primary btn-send" title="Send Message">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <div class="file-preview" id="filePreview"></div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Panel (Info/Members) -->
+        <aside id="rightPanel" class="right-panel hidden">
+            <div class="panel-header">
+                <h3 id="panelTitle">Info</h3>
+                <button id="closePanelBtn" class="btn btn-icon">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="panel-content">
+                <div id="convInfo" class="conv-info">
+                    <div class="info-section">
+                        <h4>Members</h4>
+                        <div id="membersList" class="members-list"></div>
+                    </div>
+                    <div class="info-section">
+                        <h4>Files</h4>
+                        <div id="filesList" class="files-list"></div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Modals -->
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal-overlay">
+        <div class="modal-content settings-modal">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="btn btn-icon close-modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3>Profile Settings</h3>
+                    <div class="form-group">
+                        <label>Avatar</label>
+                        <div class="avatar-upload">
+                            <img id="settingsAvatar" src="" alt="Avatar">
+                            <input type="file" id="avatarInput" accept="image/*">
+                            <label for="avatarInput" class="btn btn-secondary">Upload Avatar</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Display Name</label>
+                        <input type="text" id="displayNameInput">
+                    </div>
+                    <div class="form-group">
+                        <label>Bio</label>
+                        <textarea id="bioInput" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h3>Preferences</h3>
+                    <div class="form-group checkbox">
+                        <input type="checkbox" id="notificationsToggle">
+                        <label for="notificationsToggle">Enable Notifications</label>
+                    </div>
+                    <div class="form-group checkbox">
+                        <input type="checkbox" id="darkModeToggle">
+                        <label for="darkModeToggle">Dark Mode</label>
+                    </div>
+                </div>
+                <button id="saveSettingsBtn" class="btn btn-primary">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Chat Modal -->
+    <div id="newChatModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>New Conversation</h2>
+                <button class="btn btn-icon close-modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="newChatTitle" placeholder="Conversation title">
+                </div>
+                <div class="form-group">
+                    <label>Members</label>
+                    <div id="memberSelector" class="member-selector">
+                        <input type="text" id="memberSearchInput" placeholder="Search users...">
+                        <div id="usersList" class="users-list"></div>
+                    </div>
+                </div>
+                <button id="createChatBtn" class="btn btn-primary">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Context Menu -->
+    <div id="messageContextMenu" class="context-menu hidden">
+        <button data-action="edit" class="context-item">
+            <i class="fas fa-edit"></i> Edit
+        </button>
+        <button data-action="copy" class="context-item">
+            <i class="fas fa-copy"></i> Copy
+        </button>
+        <button data-action="forward" class="context-item">
+            <i class="fas fa-share"></i> Forward
+        </button>
+        <button data-action="react" class="context-item">
+            <i class="fas fa-smile"></i> React
+        </button>
+        <button data-action="delete" class="context-item text-danger">
+            <i class="fas fa-trash"></i> Delete
+        </button>
+    </div>
+
+    <!-- Emoji Picker -->
+    <div id="emojiPicker" class="emoji-picker hidden">
+        <div class="emoji-grid">
+            <span class="emoji" data-emoji="??">??</span>
+            <span class="emoji" data-emoji="??">??</span>
+            <span class="emoji" data-emoji="??">??</span>
+            <span class="emoji" data-emoji="??">??</span>
+            <span class="emoji" data-emoji="??">??</span>
+            <span class="emoji" data-emoji="??">??</span>
+            <span class="emoji" data-emoji="??">??</span>
+            <span class="emoji" data-emoji="??">??</span>
+            <span class="emoji" data-emoji="??">??</span>
+            <span class="emoji" data-emoji="??">??</span>
+            <span class="emoji" data-emoji="??">??</span>
+            <span class="emoji" data-emoji="??">??</span>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toastContainer" class="toast-container"></div>
+</div>
+
+<script>
+    // Initialize app on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        app.init();
+    });
+</script>
+

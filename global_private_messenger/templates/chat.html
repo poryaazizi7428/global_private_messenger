@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Chat Room</h2>
+<div id="chat-box"></div>
+<input type="text" id="message" placeholder="Type a message...">
+<button id="send-btn">Send</button>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% endblock %}
